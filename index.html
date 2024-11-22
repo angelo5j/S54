@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apartado de Mensaje</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: white;
+    }
+
+    .message-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #2b2b2b;
+      border-radius: 30px;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      width: 90%;
+      max-width: 500px;
+    }
+
+    .selected-items-container {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .icon-button {
+      background: none;
+      border: none;
+      padding: 5px;
+      margin: 0 5px;
+      cursor: pointer;
+    }
+
+    .icon-button img {
+      width: 24px;
+      height: 24px;
+      filter: invert(100%);
+    }
+
+    .message-input {
+      flex-grow: 1;
+      background: none;
+      border: none;
+      color: #ffffff;
+      padding: 10px;
+      font-size: 16px;
+      outline: none;
+      width: 100%;
+      border-bottom: 1px solid #555;
+    }
+
+    .message-input::placeholder {
+      color: #aaaaaa;
+    }
+
+    .image-preview-container {
+      position: relative;
+      display: inline-block;
+      transition: transform 0.3s ease;
+    }
+
+    .image-preview-container:hover {
+      transform: scale(1.05);
+    }
+
+    .image-preview {
+      width: 70px;
+      height: 70px;
+      object-fit: cover;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .remove-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      background-color: rgba(255, 0, 0, 0.8);
+      border: none;
+      color: white;
+      font-size: 14px;
+      padding: 5px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform: translate(50%, -50%);
+      transition: background-color 0.2s ease;
+    }
+
+    .remove-btn:hover {
+      background-color: red;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      position: relative;
+      max-width: 90%;
+      max-height: 90%;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: #ff4d4d;
+      border: none;
+      padding: 10px;
+      font-size: 18px;
+      color: white;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="message-container">
+    <div class="selected-items-container" id="selected-items-container"></div>
+    <div style="display: flex; align-items: center; width: 100%;">
+      <button class="icon-button" id="camera-btn">
+        <img src="camara.png" alt="Cámara">
+      </button>
+      <button class="icon-button" id="gallery-btn">
+        <img src="galeria.png" alt="Galería">
+      </button>
+      <button class="icon-button" id="folder-btn">
+        <img src="carpeta.png" alt="Carpeta">
+      </button>
+      <input type="text" placeholder="Mensaje" class="message-input" id="message-input">
+      <button class="icon-button" id="mic-start-btn">
+        <img src="microfono.png" alt="Iniciar Grabación">
+      </button>
+      <button class="icon-button" id="mic-stop-btn" style="display: none;">
+        <img src="boton-detener.png" alt="Detener Grabación">
+      </button>
+    </div>
+  </div>
+
+  <div class="modal" id="image-modal">
+    <div class="modal-content">
+      <img id="modal-image" src="" alt="Imagen Ampliada" style="max-width: 100%; max-height: 100%;">
+      <button class="close-btn" id="close-modal-btn">X</button>
+    </div>
+  </div>
+
+  <script>const selectedItemsContainer = document.querySelector('#selected-items-container');
+    const imageModal = document.querySelector('#image-modal');
+    const modalImage = document.querySelector('#modal-image');
+    const closeModalButton = document.querySelector('#close-modal-btn');
+    const galleryButton = document.querySelector('#gallery-btn');
+    const cameraButton = document.querySelector('#camera-btn');
+    const folderButton = document.querySelector('#folder-btn');
+    const micStartButton = document.querySelector('#mic-start-btn');
+    const micStopButton = document.querySelector('#mic-stop-btn');
+    const messageInput = document.querySelector('#message-input');
+    
+    let recognition;
+    let isRecording = false;
+    
+    // Mostrar elementos seleccionados
+    function showSelectedItem(source, name = '') {
+      const div = document.createElement('div');
+      div.classList.add('image-preview-container');
+    
+      const img = document.createElement('img');
+      img.src = source;
+      img.alt = name || 'Imagen';
+      img.classList.add('image-preview');
+    
+      const removeButton = document.createElement('button');
+      removeButton.classList.add('remove-btn');
+      removeButton.textContent = 'X';
+      removeButton.addEventListener('click', () => div.remove());
+    
+      div.appendChild(img);
+      div.appendChild(removeButton);
+      selectedItemsContainer.appendChild(div);
+    
+      img.addEventListener('click', () => {
+        modalImage.src = source;
+        imageModal.style.display = 'flex';
+      });
+    }
+    
+    // Cerrar modal de imagen
+    closeModalButton.addEventListener('click', () => {
+      imageModal.style.display = 'none';
+    });
+    
+    // Manejar galería de imágenes
+    galleryButton.addEventListener('click', () => {
+      const inputGallery = document.createElement('input');
+      inputGallery.type = 'file';
+      inputGallery.accept = 'image/*';
+      inputGallery.click();
+      inputGallery.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = () => showSelectedItem(reader.result, file.name);
+          reader.readAsDataURL(file);
+        }
+      };
+    });
+    
+    // Manejar cámara
+    cameraButton.addEventListener('click', () => {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: true })
+          .then((stream) => {
+            const video = document.createElement('video');
+            video.autoplay = true;
+            video.srcObject = stream;
+            video.style.width = '300px';
+            video.style.height = 'auto';
+            video.style.borderRadius = '10px';
+    
+            const captureButton = document.createElement('button');
+            captureButton.textContent = 'Capturar Foto';
+            captureButton.style.marginTop = '10px';
+            captureButton.style.padding = '8px 12px';
+            captureButton.style.border = 'none';
+            captureButton.style.backgroundColor = '#007bff';
+            captureButton.style.color = 'white';
+            captureButton.style.borderRadius = '5px';
+            captureButton.style.cursor = 'pointer';
+    
+            document.body.appendChild(video);
+            document.body.appendChild(captureButton);
+    
+            captureButton.addEventListener('click', () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              canvas.getContext('2d').drawImage(video, 0, 0);
+              const imageUrl = canvas.toDataURL('image/png');
+              showSelectedItem(imageUrl, 'Imagen capturada');
+    
+              stream.getTracks().forEach(track => track.stop());
+              video.remove();
+              captureButton.remove();
+            });
+          })
+          .catch(err => alert('Error al acceder a la cámara: ' + err.message));
+      } else {
+        alert('La cámara no está disponible en este dispositivo.');
+      }
+    });
+    
+    // Manejar archivos
+    folderButton.addEventListener('click', () => {
+      const inputFolder = document.createElement('input');
+      inputFolder.type = 'file';
+      inputFolder.accept = '*/*';
+      inputFolder.click();
+      inputFolder.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+          showSelectedItem(URL.createObjectURL(file), file.name);
+        }
+      };
+    });
+    
+    // Manejar grabación de audio
+    micStartButton.addEventListener('click', () => {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+      if (!SpeechRecognition) {
+        alert('El reconocimiento de voz no está soportado en este navegador.');
+        return;
+      }
+    
+      recognition = new SpeechRecognition();
+      recognition.lang = 'es-ES';
+      recognition.interimResults = true;
+      recognition.continuous = true;
+    
+      recognition.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map(result => result[0].transcript)
+          .join('');
+        messageInput.value = transcript;
+      };
+    
+      recognition.onerror = (event) => {
+        alert('Error en el reconocimiento: ' + event.error);
+      };
+    
+      recognition.onend = () => {
+        isRecording = false;
+        micStartButton.style.display = 'block';
+        micStopButton.style.display = 'none';
+      };
+    
+      recognition.start();
+      isRecording = true;
+      micStartButton.style.display = 'none';
+      micStopButton.style.display = 'block';
+    });
+    
+    // Detener grabación de audio
+    micStopButton.addEventListener('click', () => {
+      if (recognition && isRecording) {
+        recognition.stop();
+        isRecording = false;
+        micStartButton.style.display = 'block';
+        micStopButton.style.display = 'none';
+      }
+    });
+    </script>
+</body>
+</html>
